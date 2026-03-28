@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>光影粒子星系 | 动态交互3D粒子系统</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Poppins', 'Arial', sans-serif;
+        }
+        
+        /* 信息面板 - 简约科技感 */
+        .info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(10, 10, 20, 0.6);
+            backdrop-filter: blur(8px);
+            border-radius: 16px;
+            padding: 12px 24px;
+            color: white;
+            border-left: 3px solid #ff6a88;
+            pointer-events: none;
+            font-size: 14px;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            font-weight: 300;
+        }
+        
+        .info-panel h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #fff, #ffb6c1);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .info-panel p {
+            margin: 5px 0 0;
+            font-size: 11px;
+            opacity: 0.8;
+        }
+        
+        .controls-tip {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(4px);
+            border-radius: 12px;
+            padding: 6px 12px;
+            font-size: 10px;
+            color: rgba(255,255,255,0.7);
+            font-family: monospace;
+            pointer-events: none;
+        }
+        
+        @media (max-width: 600px) {
+            .info-panel { padding: 8px 16px; }
+            .info-panel h1 { font-size: 14px; }
+            .controls-tip { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="info-panel">
+        <h1>✨ 光影粒子星系 | 动态流光 ✨</h1>
+        <p>鼠标拖动旋转视角 | 滚轮缩放 | 沉浸粒子宇宙</p>
+    </div>
+    <div class="controls-tip">
+        🖱️ 交互式3D粒子场 | 动态色彩
+    </div>
+
+    <!-- 引入 Three.js 核心库以及扩展 -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        
+        // --- 初始化场景、相机、渲染器 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x010118); // 深邃星空蓝黑
+        scene.fog = new THREE.FogExp2(0x010118, 0.0008); // 轻微雾效增强景深
+        
+        // 透视相机: 视野, 宽高比, 近平面, 远平面
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.set(15, 8, 20);
+        camera.lookAt(0, 0, 0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+        
+        // --- 后期特效: 炫光 Bloom (增强光影感)
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.3, 0.85);
+        bloomPass.threshold = 0.1;  // 亮度阈值
+        bloomPass.strength = 0.9;
+        bloomPass.radius = 0.8;
+        
+        const effectComposer = new EffectComposer(renderer);
+        effectComposer.addPass(renderScene);
+        effectComposer.addPass(bloomPass);
+        
+        // --- 轨道控制 (允许用户交互，提升体验)
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;          // 惯性效果
+        controls.dampingFactor = 0.05;
+        controls.rotateSpeed = 1.0;
+        controls.zoomSpeed = 1.2;
+        controls.panSpeed = 0.5;
+        controls.enableZoom = true;
+        controls.autoRotate = false;
+        controls.target.set(0, 0, 0);
+        
+        // --- 辅助元素: 轻微的环境光让粒子色彩更透亮 (粒子自带颜色，环境光可辅助，但粒子材质不受光，仅为背景点缀)
+        // 添加一些星芒背景: 使用简单的点精灵或者不做额外处理，因为粒子已经够丰富
+        
+        // 创建一个圆形渐变纹理，用于粒子精灵 (使每个粒子呈现光晕感)
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.beginPath();
+            ctx.arc(16, 16, 14, 0, 2 * Math.PI);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.globalCompositeOperation = 'source-over';
+            const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 14);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.4, 'rgba(255,180,100,0.8)');
+            gradient.addColorStop(0.6, 'rgba(255,80,120,0.5)');
+            gradient.addColorStop(1, 'rgba(100,50,150,0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 32, 32);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+        
+        const particleTexture = createParticleTexture();
+        
+        // --- 核心粒子系统参数 ---
+        const PARTICLE_COUNT = 18000;
+        // 使用 BufferGeometry 构建绚丽粒子群
+        const geometry = new THREE.BufferGeometry();
+        
+        // 位置数组
+        const positions = new Float32Array(PARTICLE_COUNT * 3);
+        // 颜色数组 (每个粒子的独立颜色，实现多彩渐变)
+        const colors = new Float32Array(PARTICLE_COUNT * 3);
+        
+        // 定义形状: 结合球体 + 螺旋臂 + 随机散落，模拟星系效果
+        // 设计两个主要螺旋臂 + 中心密集球核 + 外围晕圈
+        
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            // 决定粒子类型: 0-核心区, 1-螺旋臂, 2-背景晕
+            let type = Math.random();
+            let radius, angle, yOffset;
+            
+            // 核心区 (明亮密集)
+            if (type < 0.25) {
+                // 核心球体: 半径 0 到 3.5 之间，高斯式分布倾向中心
+                radius = Math.pow(Math.random(), 1.5) * 3.8;
+                angle = Math.random() * Math.PI * 2;
+                // 垂直方向薄盘状，略带厚度
+                yOffset = (Math.random() - 0.5) * 1.2 * (1 - radius / 5);
+            } 
+            // 螺旋臂区域 (优雅旋臂)
+            else if (type < 0.75) {
+                // 螺旋臂: 使用对数螺旋 r = a * exp(b * theta), 简化版本
+                // 随机选择两条主臂 (两条臂相位差 PI)
+                const armChoice = Math.floor(Math.random() * 3); // 三臂增加丰富度
+                const armOffset = (armChoice / 3) * Math.PI * 2;
+                // 半径范围 2.5 到 11
+                radius = 2.5 + Math.pow(Math.random(), 1.2) * 8.5;
+                // 对数螺旋角度: theta = 系数 * log(radius) + 偏移
+                const spiralTightness = 4.2;
+                let theta = spiralTightness * Math.log(radius + 0.5) + armOffset;
+                // 添加随机扰动，让臂更自然
+                theta += (Math.random() - 0.5) * 0.8;
+                angle = theta;
+                // 薄盘，随半径增加厚度略微增加
+                yOffset = (Math.random() - 0.5) * 0.6 * Math.pow(radius / 6, 1.2);
+            } 
+            // 外围晕 & 弥漫星云
+            else {
+                radius = 7 + Math.random() * 8;
+                angle = Math.random() * Math.PI * 2;
+                yOffset = (Math.random() - 0.5) * 2.2 * (radius / 12);
+            }
+            
+            // 转换为笛卡尔坐标
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            const y = yOffset * 1.6; // 让垂直范围更舒展
+            
+            positions[i*3] = x;
+            positions[i*3+1] = y;
+            positions[i*3+2] = z;
+            
+            // --- 颜色设计: 基于半径和随机，产生华丽渐变 (蓝紫, 品红, 青, 橙)
+            // 核心偏暖白/橙黄，旋臂偏青蓝紫，外围偏冷蓝
+            let rCol, gCol, bCol;
+            const dist = Math.sqrt(x*x + y*y + z*z);
+            const normDist = Math.min(1, dist / 14);
+            
+            // 核心区域: 橙黄到粉红
+            if (dist < 3.5) {
+                const t = dist / 3.5; // 0内到外
+                rCol = 1.0;
+                gCol = 0.5 + t * 0.3;
+                bCol = 0.4 + t * 0.4;
+            } 
+            // 旋臂区域: 绚丽彩虹色系，基于角度和半径
+            else if (dist < 11) {
+                // 根据角度和半径制造彩虹效果
+                const angleVal = angle;
+                const hue = (angleVal + dist * 0.5) % (Math.PI * 2) / (Math.PI * 2);
+                // 使用HSL转换简单生成鲜艳颜色
+                // 这里直接手动生成丰富色彩: 青、紫、玫瑰金
+                const mixFactor = (dist - 3.5) / 7.5;
+                // 基础色: 蓝紫色调
+                rCol = 0.3 + Math.sin(angleVal * 2) * 0.4;
+                gCol = 0.2 + Math.cos(angleVal * 1.7) * 0.5;
+                bCol = 0.7 + Math.sin(angleVal * 1.2) * 0.3;
+                // 增加半径影响 外围偏蓝
+                rCol += (1 - mixFactor) * 0.3;
+                gCol += (1 - mixFactor) * 0.2;
+                bCol += mixFactor * 0.3;
+                // 随机微调让颜色更生动
+                rCol += (Math.random() - 0.5) * 0.15;
+                gCol += (Math.random() - 0.5) * 0.15;
+                bCol += (Math.random() - 0.5) * 0.15;
+            } 
+            // 外围晕: 冷色调星空蓝紫
+            else {
+                const t2 = (dist - 11) / 5;
+                rCol = 0.3 + Math.random() * 0.3;
+                gCol = 0.4 + Math.random() * 0.4;
+                bCol = 0.8 + Math.random() * 0.2;
+                // 轻微变暗
+                const dim = 0.7 + Math.random() * 0.3;
+                rCol *= dim;
+                gCol *= dim;
+                bCol *= dim;
+            }
+            
+            // 限制范围并确保亮度丰富
+            colors[i*3] = Math.min(1.0, Math.max(0.2, rCol));
+            colors[i*3+1] = Math.min(1.0, Math.max(0.1, gCol));
+            colors[i*3+2] = Math.min(1.0, Math.max(0.2, bCol));
+        }
+        
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        
+        // 粒子材质: 使用圆形纹理，支持顶点颜色，实现每个粒子不同色彩，并启用 additive blending 增强光感
+        const particleMaterial = new THREE.PointsMaterial({
+            size: 0.22,
+            map: particleTexture,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            transparent: true,
+            opacity: 0.95
+        });
+        
+        const particleSystem = new THREE.Points(geometry, particleMaterial);
+        scene.add(particleSystem);
+        
+        // --- 添加中心光晕球体 (增强核心视觉效果) ---
+        const coreGlowGeometry = new THREE.SphereGeometry(1.2, 32, 32);
+        const coreMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffaa66,
+            transparent: true,
+            opacity: 0.35,
+            blending: THREE.AdditiveBlending
+        });
+        const coreGlow = new THREE.Mesh(coreGlowGeometry, coreMaterial);
+        scene.add(coreGlow);
+        
+        // 再加一个微小红心核心点光源点缀
+        const innerCoreMat = new THREE.MeshStandardMaterial({
+            color: 0xff8866,
+            emissive: 0xff4422,
+            emissiveIntensity: 0.8,
+            roughness: 0.2
+        });
+        const innerCore = new THREE.Mesh(new THREE.SphereGeometry(0.65, 24, 24), innerCoreMat);
+        scene.add(innerCore);
+        
+        // 添加动态粒子流光环 (围绕中心旋转的小粒子环，增加动感)
+        const ringParticleCount = 1200;
+        const ringGeo = new THREE.BufferGeometry();
+        const ringPositions = new Float32Array(ringParticleCount * 3);
+        const ringColorsArr = new Float32Array(ringParticleCount * 3);
+        for (let i = 0; i < ringParticleCount; i++) {
+            const rad = 3.8 + Math.random() * 1.5;
+            const ang = Math.random() * Math.PI * 2;
+            const yOff = (Math.random() - 0.5) * 0.8;
+            ringPositions[i*3] = Math.cos(ang) * rad;
+            ringPositions[i*3+1] = yOff;
+            ringPositions[i*3+2] = Math.sin(ang) * rad;
+            // 环颜色暖金色
+            ringColorsArr[i*3] = 1.0;
+            ringColorsArr[i*3+1] = 0.6 + Math.random() * 0.4;
+            ringColorsArr[i*3+2] = 0.3 + Math.random() * 0.3;
+        }
+        ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPositions, 3));
+        ringGeo.setAttribute('color', new THREE.BufferAttribute(ringColorsArr, 3));
+        const ringParticles = new THREE.Points(ringGeo, new THREE.PointsMaterial({
+            size: 0.12,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            transparent: true
+        }));
+        scene.add(ringParticles);
+        
+        // 额外: 生成漂浮的星尘粒子(更远背景层，数量多)
+        const dustCount = 8000;
+        const dustGeo = new THREE.BufferGeometry();
+        const dustPositions = new Float32Array(dustCount * 3);
+        const dustColorsArr = new Float32Array(dustCount * 3);
+        for (let i = 0; i < dustCount; i++) {
+            // 分布在大球壳范围 18 到 40
+            const radiusDust = 18 + Math.random() * 22;
+            const thetaDust = Math.random() * Math.PI * 2;
+            const phiDust = Math.acos(2 * Math.random() - 1);
+            const xDust = radiusDust * Math.sin(phiDust) * Math.cos(thetaDust);
+            const yDust = radiusDust * Math.sin(phiDust) * Math.sin(thetaDust) * 0.6; // 扁平化一点
+            const zDust = radiusDust * Math.cos(phiDust);
+            dustPositions[i*3] = xDust;
+            dustPositions[i*3+1] = yDust * 0.8;
+            dustPositions[i*3+2] = zDust;
+            // 尘粒颜色淡蓝紫
+            dustColorsArr[i*3] = 0.5 + Math.random() * 0.3;
+            dustColorsArr[i*3+1] = 0.4 + Math.random() * 0.4;
+            dustColorsArr[i*3+2] = 0.7 + Math.random() * 0.3;
+        }
+        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+        dustGeo.setAttribute('color', new THREE.BufferAttribute(dustColorsArr, 3));
+        const dustPoints = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+            size: 0.09,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            opacity: 0.6
+        }));
+        scene.add(dustPoints);
+        
+        // --- 添加动态的扫光线条: 使用环状线条围绕中心 (装饰性)
+        const curvePoints = [];
+        const turns = 3;
+        const radiusCurve = 5.5;
+        for (let i = 0; i <= 200; i++) {
+            const t = i / 200;
+            const angleCurve = t * Math.PI * 2 * turns;
+            const xCurve = Math.cos(angleCurve) * radiusCurve;
+            const zCurve = Math.sin(angleCurve) * radiusCurve;
+            const yCurve = Math.sin(angleCurve * 1.5) * 1.2;
+            curvePoints.push(new THREE.Vector3(xCurve, yCurve, zCurve));
+        }
+        const lineGeometry = new THREE.BufferGeometry().setFromPoints(curvePoints);
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff66cc, transparent: true, opacity: 0.35 });
+        const spiralLine = new THREE.Line(lineGeometry, lineMaterial);
+        scene.add(spiralLine);
+        
+        const curvePoints2 = [];
+        for (let i = 0; i <= 200; i++) {
+            const t = i / 200;
+            const angleCurve = t * Math.PI * 2 * turns + Math.PI;
+            const xCurve = Math.cos(angleCurve) * radiusCurve * 0.9;
+            const zCurve = Math.sin(angleCurve) * radiusCurve * 0.9;
+            const yCurve = Math.sin(angleCurve * 1.5 + 2) * 1.0;
+            curvePoints2.push(new THREE.Vector3(xCurve, yCurve, zCurve));
+        }
+        const lineGeometry2 = new THREE.BufferGeometry().setFromPoints(curvePoints2);
+        const lineMaterial2 = new THREE.LineBasicMaterial({ color: 0x33aaff, transparent: true, opacity: 0.3 });
+        const spiralLine2 = new THREE.Line(lineGeometry2, lineMaterial2);
+        scene.add(spiralLine2);
+        
+        // --- 动画变量: 使粒子系统整体缓慢自转，且环粒子独立旋转，增加灵动感
+        let time = 0;
+        
+        // 为增添梦幻效果，动态改变核心颜色强度及Bloom强度轻微变化
+        let bloomDirection = 1;
+        let bloomStrengthVal = 0.9;
+        
+        // 用于后期特效的强度微调
+        function animateBloom() {
+            bloomStrengthVal += bloomDirection * 0.002;
+            if (bloomStrengthVal >= 1.05) bloomDirection = -1;
+            if (bloomStrengthVal <= 0.8) bloomDirection = 1;
+            bloomPass.strength = bloomStrengthVal;
+        }
+        
+        // 让中心光晕脉冲
+        let pulseScale = 1;
+        let pulseDir = 0.01;
+        
+        // 粒子整体轻微旋转速度
+        let globalRotationY = 0;
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.008;
+            
+            // 动态视觉效果:
+            // 1. 整体粒子系统缓慢自转，产生星系旋转感
+            globalRotationY += 0.0015;
+            particleSystem.rotation.y = globalRotationY;
+            dustPoints.rotation.y = globalRotationY * 0.3;
+            // 环粒子独立旋转速度稍快
+            ringParticles.rotation.y += 0.003;
+            ringParticles.rotation.x = Math.sin(time * 0.5) * 0.1;
+            ringParticles.rotation.z = Math.cos(time * 0.7) * 0.05;
+            
+            // 螺旋装饰线旋转
+            spiralLine.rotation.y += 0.001;
+            spiralLine.rotation.x = Math.sin(time * 0.4) * 0.1;
+            spiralLine2.rotation.y -= 0.0008;
+            spiralLine2.rotation.z = Math.cos(time * 0.6) * 0.05;
+            
+            // 核心脉冲动画
+            pulseScale += pulseDir;
+            if (pulseScale >= 1.12) pulseDir = -0.008;
+            if (pulseScale <= 0.92) pulseDir = 0.008;
+            coreGlow.scale.set(pulseScale, pulseScale, pulseScale);
+            innerCore.scale.set(1 + Math.sin(time * 5) * 0.03, 1 + Math.sin(time * 5) * 0.03, 1 + Math.sin(time * 5) * 0.03);
+            
+            // 动态改变核心材质的 emissive 强度
+            const intensity = 0.7 + Math.sin(time * 3) * 0.3;
+            innerCore.material.emissiveIntensity = intensity;
+            
+            // 更新粒子材质大小? 轻微呼吸效果 (整体粒子大小变化可增加生动性)
+            const breath = 0.22 + Math.sin(time * 1.2) * 0.02;
+            particleMaterial.size = breath;
+            ringParticles.material.size = 0.12 + Math.sin(time * 1.8) * 0.01;
+            
+            // 更新相机控制并重新渲染后期
+            controls.update(); // 如果启用自动旋转可在这里开启，但为了交互体验不自动旋转，只允许用户控制
+            
+            // 动态调整 bloom 强度
+            animateBloom();
+            
+            // 可选: 根据时间改变背景颜色轻微渐变 (极细微)
+            const bgR = 0.02 + Math.sin(time * 0.1) * 0.005;
+            const bgG = 0.03 + Math.cos(time * 0.13) * 0.005;
+            const bgB = 0.09 + Math.sin(time * 0.17) * 0.008;
+            scene.background.setRGB(bgR, bgG, bgB);
+            scene.fog.color.setRGB(bgR, bgG, bgB);
+            
+            // 通过 EffectComposer 渲染
+            effectComposer.render();
+        }
+        
+        // 启动动画
+        animate();
+        
+        // --- 窗口适配响应式布局 ---
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            effectComposer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // 小彩蛋: 控制台输出欢迎语
+        console.log('%c✨ 光影粒子星系已启动 | 欢迎探索梦幻宇宙 ✨', 'color: #ff88aa; font-size: 16px; font-weight: bold;');
+        
+        // 增加简单引导提示 (可选)
+        const instructions = document.createElement('div');
+        instructions.style.position = 'fixed';
+        instructions.style.bottom = '15px';
+        instructions.style.left = '50%';
+        instructions.style.transform = 'translateX(-50%)';
+        instructions.style.color = 'rgba(255,255,255,0.5)';
+        instructions.style.fontSize = '12px';
+        instructions.style.fontFamily = 'monospace';
+        instructions.style.background = 'rgba(0,0,0,0.4)';
+        instructions.style.padding = '4px 12px';
+        instructions.style.borderRadius = '20px';
+        instructions.style.backdropFilter = 'blur(4px)';
+        instructions.style.zIndex = '200';
+        instructions.style.pointerEvents = 'none';
+        instructions.innerText = '✨ 鼠标拖拽旋转视角 | 滚轮缩放 ✨';
+        document.body.appendChild(instructions);
+        
+        // 几秒后淡出提示
+        setTimeout(() => {
+            instructions.style.transition = 'opacity 2s';
+            instructions.style.opacity = '0';
+            setTimeout(() => instructions.remove(), 2500);
+        }, 4000);
+    </script>
+</body>
+</html>
